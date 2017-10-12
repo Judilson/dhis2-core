@@ -70,21 +70,25 @@ public class MonitoringJob
     public void execute( JobParameters jobParameters )
     {
         MonitoringJobParameters jobConfig = (MonitoringJobParameters) jobParameters;
-        
+
         notifier.clear( jobConfig.getJobId() ).notify( jobConfig.getJobId(), "Monitoring data" );
-        
+
         try
         {
-            validationService.startScheduledValidationAnalysis();
-            
+            validationService
+                .startInteractiveValidationAnalysis( jobConfig.getPeriodStartDate(), jobConfig.getPeriodEndDate(),
+                    jobConfig.getOrganisationUnits(), jobConfig.getAttributeOptionCombo(),
+                    jobConfig.getValidationRuleGroups(), jobConfig.isSendNotifications(),
+                    jobConfig.isPersistResults() );
+
             notifier.notify( jobConfig.getJobId(), INFO, "Monitoring process done", true );
         }
         catch ( RuntimeException ex )
         {
             notifier.notify( jobConfig.getJobId(), ERROR, "Process failed: " + ex.getMessage(), true );
-            
+
             messageService.sendSystemErrorNotification( "Monitoring process failed", ex );
-            
+
             throw ex;
         }
     }

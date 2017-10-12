@@ -31,7 +31,6 @@ package org.hisp.dhis.validation;
 import org.hisp.dhis.dataelement.DataElementCategoryOptionCombo;
 import org.hisp.dhis.dataelement.DataElementOperand;
 import org.hisp.dhis.dataset.DataSet;
-import org.hisp.dhis.i18n.I18nFormat;
 import org.hisp.dhis.organisationunit.OrganisationUnit;
 import org.hisp.dhis.period.Period;
 
@@ -56,11 +55,11 @@ public interface ValidationService
      * @param attributeCombo    attribute category option combo (null for all).
      * @param group             validation rule group (null for all validationRules).
      * @param sendNotifications whether to send notifications upon rule violations.
-     * @param format            the i18n format.
+     * @param persistResults    persist new results
      * @return a Collection of ValidationResults for each validation violation.
      */
     Collection<ValidationResult> startInteractiveValidationAnalysis( Date startDate, Date endDate, List<OrganisationUnit> orgUnits,
-        DataElementCategoryOptionCombo attributeCombo, ValidationRuleGroup group, boolean sendNotifications, I18nFormat format );
+        DataElementCategoryOptionCombo attributeCombo, List<ValidationRuleGroup> group, boolean sendNotifications, boolean persistResults );
 
     /**
      * Validate DataValues.

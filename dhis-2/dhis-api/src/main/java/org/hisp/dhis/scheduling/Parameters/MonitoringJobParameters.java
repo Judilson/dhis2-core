@@ -1,12 +1,13 @@
 package org.hisp.dhis.scheduling.Parameters;
 
+import org.hisp.dhis.dataelement.DataElementCategoryOptionCombo;
 import org.hisp.dhis.organisationunit.OrganisationUnit;
-import org.hisp.dhis.period.Period;
 import org.hisp.dhis.scheduling.JobId;
 import org.hisp.dhis.scheduling.JobParameters;
 import org.hisp.dhis.schema.annotation.Property;
 import org.hisp.dhis.validation.ValidationRuleGroup;
 
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -20,13 +21,19 @@ public class MonitoringJobParameters
     private JobId jobId;
 
     @Property
-    private List<Period> periods;
+    private Date periodStartDate;
+
+    @Property
+    private Date periodEndDate;
 
     @Property
     private List<OrganisationUnit> organisationUnits;
 
     @Property
     private List<ValidationRuleGroup> validationRuleGroups;
+
+    @Property
+    private DataElementCategoryOptionCombo attributeOptionCombo;
 
     // Optional parameters
     @Property
@@ -36,12 +43,16 @@ public class MonitoringJobParameters
     private boolean persistResults;
 
     public MonitoringJobParameters()
-    {}
+    {
+    }
 
-    public MonitoringJobParameters( JobId jobId, List<Period> periods, List<OrganisationUnit> organisationUnits, List<ValidationRuleGroup> validationRuleGroups, boolean sendNotifications, boolean persistResults )
+    public MonitoringJobParameters( JobId jobId, Date periodStartDate, Date periodEndDate,
+        List<OrganisationUnit> organisationUnits, List<ValidationRuleGroup> validationRuleGroups,
+        boolean sendNotifications, boolean persistResults )
     {
         this.jobId = jobId;
-        this.periods = periods;
+        this.periodStartDate = periodStartDate;
+        this.periodEndDate = periodEndDate;
         this.organisationUnits = organisationUnits;
         this.validationRuleGroups = validationRuleGroups;
         this.sendNotifications = sendNotifications;
@@ -56,16 +67,6 @@ public class MonitoringJobParameters
     public void setJobId( JobId jobId )
     {
         this.jobId = jobId;
-    }
-
-    public List<Period> getPeriods()
-    {
-        return periods;
-    }
-
-    public void setPeriods( List<Period> periods )
-    {
-        this.periods = periods;
     }
 
     public List<OrganisationUnit> getOrganisationUnits()
@@ -106,5 +107,35 @@ public class MonitoringJobParameters
     public void setPersistResults( boolean persistResults )
     {
         this.persistResults = persistResults;
+    }
+
+    public Date getPeriodStartDate()
+    {
+        return periodStartDate;
+    }
+
+    public void setPeriodStartDate( Date periodStartDate )
+    {
+        this.periodStartDate = periodStartDate;
+    }
+
+    public Date getPeriodEndDate()
+    {
+        return periodEndDate;
+    }
+
+    public void setPeriodEndDate( Date periodEndDate )
+    {
+        this.periodEndDate = periodEndDate;
+    }
+
+    public DataElementCategoryOptionCombo getAttributeOptionCombo()
+    {
+        return attributeOptionCombo;
+    }
+
+    public void setAttributeOptionCombo( DataElementCategoryOptionCombo attributeOptionCombo )
+    {
+        this.attributeOptionCombo = attributeOptionCombo;
     }
 }

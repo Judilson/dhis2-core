@@ -28,6 +28,7 @@ package org.hisp.dhis.validation;
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import com.google.common.collect.Lists;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.hisp.dhis.DhisTest;
@@ -512,7 +513,7 @@ public class ValidationServiceTest
         // appear in the same order.
 
         Collection<ValidationResult> results = validationService.startInteractiveValidationAnalysis( getDate( 2000, 2, 1 ),
-            getDate( 2000, 6, 1 ), sourcesA, null, null, false, null );
+            getDate( 2000, 6, 1 ), sourcesA, null, null, false, false );
 
         Collection<ValidationResult> reference = new HashSet<>();
 
@@ -563,7 +564,7 @@ public class ValidationServiceTest
         validationRuleService.addValidationRuleGroup( group );
 
         Collection<ValidationResult> results = validationService.startInteractiveValidationAnalysis( getDate( 2000, 2, 1 ),
-            getDate( 2000, 6, 1 ), sourcesA, null, group, false, null );
+            getDate( 2000, 6, 1 ), sourcesA, null, Lists.newArrayList(group), false, false );
 
         Collection<ValidationResult> reference = new HashSet<>();
 

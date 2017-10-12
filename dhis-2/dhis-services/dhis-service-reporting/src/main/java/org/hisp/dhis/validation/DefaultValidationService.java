@@ -34,12 +34,7 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.hisp.dhis.common.DimensionItemType;
-import org.hisp.dhis.common.DimensionalItemObject;
-import org.hisp.dhis.common.IdentifiableObject;
-import org.hisp.dhis.common.IdentifiableObjectManager;
-import org.hisp.dhis.common.MapMap;
-import org.hisp.dhis.common.SetMap;
+import org.hisp.dhis.common.*;
 import org.hisp.dhis.constant.ConstantService;
 import org.hisp.dhis.dataelement.DataElement;
 import org.hisp.dhis.dataelement.DataElementCategoryOptionCombo;
@@ -49,7 +44,6 @@ import org.hisp.dhis.dataset.DataSet;
 import org.hisp.dhis.datavalue.DataValue;
 import org.hisp.dhis.datavalue.DataValueService;
 import org.hisp.dhis.expression.ExpressionService;
-import org.hisp.dhis.i18n.I18nFormat;
 import org.hisp.dhis.organisationunit.OrganisationUnit;
 import org.hisp.dhis.organisationunit.OrganisationUnitService;
 import org.hisp.dhis.period.Period;
@@ -137,17 +131,26 @@ public class DefaultValidationService
     @Override
     public Collection<ValidationResult> startInteractiveValidationAnalysis( Date startDate, Date endDate,
         List<OrganisationUnit> orgUnits,
-        DataElementCategoryOptionCombo attributeOptionCombo, ValidationRuleGroup group, boolean sendNotifications,
-        I18nFormat format )
+        DataElementCategoryOptionCombo attributeOptionCombo, List<ValidationRuleGroup> groups,
+        boolean sendNotifications, boolean persistResults )
     {
         Clock clock = new Clock( log ).startClock().logTime( "Starting interactive validation run." );
 
         Collection<Period> periods = periodService.getPeriodsBetweenDates( startDate, endDate );
 
-        Collection<ValidationRule> rules =
-            group != null ? group.getMembers() : validationRuleService.getAllValidationRules();
+        Collection<ValidationRule> validationRules;
 
-        ValidationRunContext context = getValidationContext( orgUnits, periods, rules )
+        if ( groups.isEmpty() )
+        {
+            validationRules = validationRuleService.getAllValidationRules();
+        }
+        else
+        {
+            validationRules = new HashSet<>();
+            groups.forEach( validationRuleGroup -> validationRules.addAll( validationRuleGroup.getMembers() ) );
+        }
+
+        ValidationRunContext context = getValidationContext( orgUnits, periods, validationRules )
             .withAttributeCombo( attributeOptionCombo )
             .withMaxResults( MAX_INTERACTIVE_ALERTS )
             .withSendNotifications( sendNotifications )
@@ -280,7 +283,8 @@ public class DefaultValidationService
     {
         return rules.stream()
             .map( rule -> periodService.getPeriodTypeByName( rule.getPeriodType().getName() ) )
-            .map( periodType -> {
+            .map( periodType ->
+            {
                 Period current = periodType.createPeriod(), previous = periodType.getPreviousPeriod( current );
                 Date start = previous.getStartDate(), end = current.getEndDate();
 
@@ -306,8 +310,8 @@ public class DefaultValidationService
     /**
      * Returns a new Builder with basic configuration based on the input parameters.
      *
-     * @param orgUnits organisation units to include in analysis.
-     * @param periods periods to include in analysis.
+     * @param orgUnits        organisation units to include in analysis.
+     * @param periods         periods to include in analysis.
      * @param validationRules rules to include in analysis.
      * @return Builder with basic configuration based on input.
      */
@@ -319,7 +323,8 @@ public class DefaultValidationService
         Map<PeriodType, PeriodTypeExtended> periodTypeExtendedMap = new HashMap<>();
 
         addPeriodsToContext( periodTypeExtendedMap, periods );
-        Map<String, DimensionalItemObject> dimensionItemMap = addRulesToContext( periodTypeExtendedMap, validationRules );
+        Map<String, DimensionalItemObject> dimensionItemMap = addRulesToContext( periodTypeExtendedMap,
+            validationRules );
         removeAnyUnneededPeriodTypes( periodTypeExtendedMap );
         addOrgUnitsToContext( periodTypeExtendedMap, orgUnits );
 
@@ -345,7 +350,7 @@ public class DefaultValidationService
      * Adds Periods to the context, grouped by period type.
      *
      * @param periodTypeExtendedMap period type map to extended period types.
-     * @param periods periods to group and add.
+     * @param periods               periods to group and add.
      */
     private void addPeriodsToContext( Map<PeriodType, PeriodTypeExtended> periodTypeExtendedMap,
         Collection<Period> periods )
@@ -362,9 +367,10 @@ public class DefaultValidationService
      * Adds validation rules to the context.
      *
      * @param periodTypeExtendedMap period type map to extended period types.
-     * @param rules validation rules to add.
+     * @param rules                 validation rules to add.
      */
-    private Map<String, DimensionalItemObject> addRulesToContext( Map<PeriodType, PeriodTypeExtended> periodTypeExtendedMap,
+    private Map<String, DimensionalItemObject> addRulesToContext(
+        Map<PeriodType, PeriodTypeExtended> periodTypeExtendedMap,
         Collection<ValidationRule> rules )
     {
         // 1. Find all dimensional object IDs in the expressions of the validation rules.
@@ -380,10 +386,13 @@ public class DefaultValidationService
                 continue; // Don't include rules for which there are no periods.
             }
 
-            SetMap<Class<? extends DimensionalItemObject>, String> dimensionItemIdentifiers = expressionService.getDimensionalItemIdsInExpression( rule.getLeftSide().getExpression() );
-            dimensionItemIdentifiers.putValues( expressionService.getDimensionalItemIdsInExpression( rule.getRightSide().getExpression() ) );
+            SetMap<Class<? extends DimensionalItemObject>, String> dimensionItemIdentifiers = expressionService
+                .getDimensionalItemIdsInExpression( rule.getLeftSide().getExpression() );
+            dimensionItemIdentifiers.putValues(
+                expressionService.getDimensionalItemIdsInExpression( rule.getRightSide().getExpression() ) );
 
-            Set<String> ruleIds = dimensionItemIdentifiers.values().stream().reduce( new HashSet<>(), ( x, y ) -> Sets.union( x, y ) );
+            Set<String> ruleIds = dimensionItemIdentifiers.values().stream()
+                .reduce( new HashSet<>(), ( x, y ) -> Sets.union( x, y ) );
 
             ruleItemIds.putValues( rule, ruleIds );
 
@@ -426,7 +435,7 @@ public class DefaultValidationService
 
                     Set<DataElement> ruleDataElements = ruleDataElementOperands.stream()
                         .map( o -> o.getDataElement() )
-                        .collect (Collectors.toSet() );
+                        .collect( Collectors.toSet() );
 
                     ruleX.setDataElements( ruleDataElements );
                 }
@@ -460,9 +469,12 @@ public class DefaultValidationService
 
         SetMap<Class<? extends IdentifiableObject>, String> idsToGet = new SetMap<>();
 
-        getIdentifiableObjectIds( idsToGet, expressionIdMap, DataElementOperand.class, DataElement.class, DataElementCategoryOptionCombo.class );
-        getIdentifiableObjectIds( idsToGet, expressionIdMap, ProgramDataElementDimensionItem.class, Program.class, DataElement.class );
-        getIdentifiableObjectIds( idsToGet, expressionIdMap, ProgramTrackedEntityAttributeDimensionItem.class, Program.class, TrackedEntityAttribute.class );
+        getIdentifiableObjectIds( idsToGet, expressionIdMap, DataElementOperand.class, DataElement.class,
+            DataElementCategoryOptionCombo.class );
+        getIdentifiableObjectIds( idsToGet, expressionIdMap, ProgramDataElementDimensionItem.class, Program.class,
+            DataElement.class );
+        getIdentifiableObjectIds( idsToGet, expressionIdMap, ProgramTrackedEntityAttributeDimensionItem.class,
+            Program.class, TrackedEntityAttribute.class );
         getIdentifiableObjectIds( idsToGet, expressionIdMap, ProgramIndicator.class, ProgramIndicator.class );
 
         // 2. Look up all the IdentifiableObjects (each class all together, for best performance):
@@ -471,7 +483,8 @@ public class DefaultValidationService
 
         for ( Map.Entry<Class<? extends IdentifiableObject>, Set<String>> e : idsToGet.entrySet() )
         {
-            idMap.putEntries( e.getKey(), idObjectManager.get( e.getKey(), e.getValue() ).stream().collect( Collectors.toMap( o -> o.getUid(), o -> o ) ) );
+            idMap.putEntries( e.getKey(), idObjectManager.get( e.getKey(), e.getValue() ).stream()
+                .collect( Collectors.toMap( o -> o.getUid(), o -> o ) ) );
         }
 
         // 3. Build the map of DimensionalItemObjects:
@@ -484,18 +497,22 @@ public class DefaultValidationService
             {
                 if ( e.getKey() == DataElementOperand.class )
                 {
-                    DataElementOperand deo = new DataElementOperand( (DataElement)idMap.getValue( DataElement.class, getIdPart( id, 0 ) ),
-                        (DataElementCategoryOptionCombo)idMap.getValue( DataElementCategoryOptionCombo.class, getIdPart( id, 1) ) );
+                    DataElementOperand deo = new DataElementOperand(
+                        (DataElement) idMap.getValue( DataElement.class, getIdPart( id, 0 ) ),
+                        (DataElementCategoryOptionCombo) idMap
+                            .getValue( DataElementCategoryOptionCombo.class, getIdPart( id, 1 ) ) );
 
-                    if ( deo.getDataElement() != null && ( deo.getCategoryOptionCombo() != null || getIdPart( id, 1 ) == null ) )
+                    if ( deo.getDataElement() != null &&
+                        (deo.getCategoryOptionCombo() != null || getIdPart( id, 1 ) == null) )
                     {
                         dimObjects.put( id, deo );
                     }
                 }
                 else if ( e.getKey() == ProgramDataElementDimensionItem.class )
                 {
-                    ProgramDataElementDimensionItem pde = new ProgramDataElementDimensionItem( (Program)idMap.getValue( Program.class, getIdPart( id, 0 ) ),
-                        (DataElement)idMap.getValue( DataElement.class, getIdPart( id, 1) ) );
+                    ProgramDataElementDimensionItem pde = new ProgramDataElementDimensionItem(
+                        (Program) idMap.getValue( Program.class, getIdPart( id, 0 ) ),
+                        (DataElement) idMap.getValue( DataElement.class, getIdPart( id, 1 ) ) );
 
                     if ( pde.getProgram() != null && pde.getDataElement() != null )
                     {
@@ -504,8 +521,9 @@ public class DefaultValidationService
                 }
                 else if ( e.getKey() == ProgramTrackedEntityAttributeDimensionItem.class )
                 {
-                    ProgramTrackedEntityAttributeDimensionItem pa = new ProgramTrackedEntityAttributeDimensionItem( (Program)idMap.getValue( Program.class, getIdPart( id, 0 ) ),
-                        (TrackedEntityAttribute)idMap.getValue( TrackedEntityAttribute.class, getIdPart( id, 1) ) );
+                    ProgramTrackedEntityAttributeDimensionItem pa = new ProgramTrackedEntityAttributeDimensionItem(
+                        (Program) idMap.getValue( Program.class, getIdPart( id, 0 ) ),
+                        (TrackedEntityAttribute) idMap.getValue( TrackedEntityAttribute.class, getIdPart( id, 1 ) ) );
 
                     if ( pa.getProgram() != null && pa.getAttribute() != null )
                     {
@@ -514,7 +532,7 @@ public class DefaultValidationService
                 }
                 else if ( e.getKey() == ProgramIndicator.class )
                 {
-                    ProgramIndicator pi = (ProgramIndicator)idMap.getValue( ProgramIndicator.class, id );
+                    ProgramIndicator pi = (ProgramIndicator) idMap.getValue( ProgramIndicator.class, id );
 
                     if ( pi != null )
                     {
@@ -532,10 +550,10 @@ public class DefaultValidationService
      * them into identifiers for the identifiable objects that make up
      * the dimensional object.
      *
-     * @param idsToGet To add to: identifiable object IDs to look up.
+     * @param idsToGet        To add to: identifiable object IDs to look up.
      * @param expressionIdMap Dimensional object IDs from expression.
-     * @param dimClass Class of dimensional object
-     * @param idClasses Component class(es) of identifiable objects
+     * @param dimClass        Class of dimensional object
+     * @param idClasses       Component class(es) of identifiable objects
      */
     @SafeVarargs
     private final void getIdentifiableObjectIds( SetMap<Class<? extends IdentifiableObject>, String> idsToGet,
@@ -558,7 +576,7 @@ public class DefaultValidationService
 
                 if ( objectId != null )
                 {
-                    idsToGet.putValue( idClasses[ i ], objectId );
+                    idsToGet.putValue( idClasses[i], objectId );
                 }
             }
         }
@@ -567,7 +585,7 @@ public class DefaultValidationService
     /**
      * Gets part of an object identifier which may be composite.
      *
-     * @param id The identifier to parse.
+     * @param id    The identifier to parse.
      * @param index Index of the part to return.
      * @return The identifier part.
      */
@@ -631,7 +649,7 @@ public class DefaultValidationService
      * and returns it.
      *
      * @param periodTypeExtendedMap period type map to extended period types.
-     * @param periodType period type to search for
+     * @param periodType            period type to search for
      * @return period type extended from the context object
      */
     private PeriodTypeExtended getOrCreatePeriodTypeExtended( Map<PeriodType, PeriodTypeExtended> periodTypeExtendedMap,
